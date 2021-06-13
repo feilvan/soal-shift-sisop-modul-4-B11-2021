@@ -6,349 +6,308 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <errno.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 #include <sys/time.h>
-#include <sys/xattr.h>
-#include <stdbool.h>
+#include <stdlib.h>
+#include <ctype.h>
 
-static  const  char *dirpath = "/home/xa/Downloads";
+static const char *dirpath = "/home/xa/Downloads";
 
-char * enc1(char* str)
+char *prefix1 = "AtoZ_";
+char *prefix2 = "RX_";
+int x = 0;
+
+int splitExtension(char *filePath)
 {
-	int s = 0;
-	char *stop = strrchr(str, '.');
-	if (stop != NULL)
-        s = strlen(stop);
-	for (int i = 0; i < strlen(str) - s; i++) {
-		if(str[i]>='A'&&str[i]<='Z')
-            str[i] = 'Z'+'A'-str[i];
-   		if(str[i]>='a'&&str[i]<='z')
-            str[i] = 'z'+'a'-str[i];
-    }
-	return str;
+    int isFound = 0;
+    for (int index = strlen(filePath) - 1; index >= 0; index--)
+        if (filePath[index] == '.') {
+            if (isFound == 1) return index;
+            else isFound = 1;
+        }
+    return strlen(filePath);
 }
 
-char * dec1(char* str)
+int getExtension(char *filePath)
 {
-	int s = 0;
-	char *stop = strrchr(str, '.');
-	if (stop != NULL)
-        s = strlen(stop);
-	for (int i = 0; i < strlen(str) - s; i++) {
-		if(str[i]>='A'&&str[i]<='Z')
-            str[i] = 'A'+'Z'-str[i];
-   		if(str[i]>='a'&&str[i]<='z')
-            str[i] = 'a'+'z'-str[i];
+    for (int index = strlen(filePath) - 1; index >= 0; index--)
+        if (filePath[index] == '.') return index;
+    return strlen(filePath);
+}
+
+int getSlashFile(char *filePath, int end)
+{
+    for (int index = 0; index < strlen(filePath); index++)
+        if (filePath[index] == '/') return index + 1;
+    return end;
+}
+
+void encAtbash(char *filePath)
+{
+    if (!strcmp(filePath, ".") || !strcmp(filePath, "..")) return;
+
+    printf("Encrypt file with atbash: %s\n", filePath);
+    fflush(stdout);
+
+    int endIndex = splitExtension(filePath);
+    if (endIndex == strlen(filePath))
+        endIndex = getExtension(filePath);
+    int startIndex = getSlashFile(filePath, 0);
+
+    for (int index = startIndex; index < endIndex; index++)
+    {
+        if (filePath[index] != '/' && isalpha(filePath[index]))
+        {
+            char tmp = filePath[index];
+            if (isupper(filePath[index]))
+                tmp -= 'A';
+            else
+                tmp -= 'a';
+            tmp = 25 - tmp; //Atbash cipher
+            if (isupper(filePath[index]))
+                tmp += 'A';
+            else
+                tmp += 'a';
+            filePath[index] = tmp;
+        }
     }
-	return str;
+}
+
+void decAtbash(char *path)
+{
+    if (!strcmp(path, ".") || !strcmp(path, "..")) return;
+
+    printf("Decrypt file with atbash: %s\n", path);
+    fflush(stdout);
+
+    int endIndex = splitExtension(path);
+    if (endIndex == strlen(path))
+        endIndex = getExtension(path);
+    int startIndex = getSlashFile(path, endIndex);
+
+    for (int index = startIndex; index < endIndex; index++) {
+        if (path[index] != '/' && isalpha(path[index])) {
+            char tmp = path[index];
+            if (isupper(path[index]))
+                tmp -= 'A';
+            else
+                tmp -= 'a';
+            tmp = 25 - tmp;
+            if (isupper(path[index]))
+                tmp += 'A';
+            else
+                tmp += 'a';
+            path[index] = tmp;
+        }
+    }
+}
+
+void setLog(char *logCategory, char *fpath)
+{
+    time_t rawtime;
+    struct tm *timeinfo;
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+
+    FILE *file;
+    file = fopen("/home/xa/SinSeiFS.log", "a");
+    char tmp[1000];
+
+    if (strcmp(logCategory, "RMDIR") == 0 || strcmp(logCategory, "UNLINK") == 0)
+        sprintf(tmp, "WARNING::%.2d%.2d%d-%.2d:%.2d:%.2d:%s::%s\n", timeinfo->tm_mday, timeinfo->tm_mon + 1, timeinfo->tm_year + 1900, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec, logCategory, fpath);
+    else
+        sprintf(tmp, "INFO::%.2d%.2d%d-%.2d:%.2d:%.2d:%s::%s\n", timeinfo->tm_mday, timeinfo->tm_mon + 1, timeinfo->tm_year + 1900, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec, logCategory, fpath);
+
+    fputs(tmp, file);
+    fclose(file);
+    return;
+}
+
+void setLogWithNameFiles(char *logCategory, const char *old, const char *new)
+{
+    time_t rawtime;
+    struct tm *timeinfo;
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+
+    FILE *file;
+    file = fopen("/home/xa/SinSeiFS.log", "a");
+    char tmp[1000];
+
+    if (strcmp(logCategory, "RMDIR") == 0 || strcmp(logCategory, "UNLINK") == 0)
+        sprintf(tmp, "WARNING::%.2d%.2d%d-%.2d:%.2d:%.2d:%s::%s::%s\n", timeinfo->tm_mday, timeinfo->tm_mon + 1, timeinfo->tm_year + 1900, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec, logCategory, old, new);
+    else
+        sprintf(tmp, "INFO::%.2d%.2d%d-%.2d:%.2d:%.2d:%s::%s::%s\n", timeinfo->tm_mday, timeinfo->tm_mon + 1, timeinfo->tm_year + 1900, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec, logCategory, old, new);
+
+    fputs(tmp, file);
+    fclose(file);
+    return;
 }
 
 static int xmp_getattr(const char *path, struct stat *stbuf)
 {
-    int res;
+    char *a = strstr(path, prefix1);
+    if (a != NULL) decAtbash(a);
+
+    char *b = strstr(path, prefix2);
+    if (b != NULL) decAtbash(b);
+
     char fpath[1000];
+    if (strcmp(path, "/") == 0) {
+        path = dirpath;
+        sprintf(fpath, "%s", path);
+    }
+    else sprintf(fpath, "%s%s", dirpath, path);
 
-    sprintf(fpath,"%s%s",dirpath,path);
-
-    res = lstat(fpath, stbuf);
-
+    int res = lstat(fpath, stbuf);
     if (res == -1) return -errno;
-
     return 0;
 }
 
 static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
 {
+    char *a = strstr(path, prefix1);
+    if (a != NULL) decAtbash(a);
+
+    char *b = strstr(path, prefix2);
+    if (b != NULL) decAtbash(b);
+
     char fpath[1000];
-    if(strcmp(path,"/") == 0)
-    {
-        path=dirpath;
-        sprintf(fpath,"%s",path);
+    if (strcmp(path, "/") == 0) {
+        path = dirpath;
+        sprintf(fpath, "%s", path);
     }
-    else sprintf(fpath, "%s%s",dirpath,path);
+    else sprintf(fpath, "%s%s", dirpath, path);
+
+    if (x != 24) x++;
+    else setLog("READDIR", fpath);
 
     int res = 0;
-
     DIR *dp;
     struct dirent *de;
-    (void) offset;
-    (void) fi;
+
+    (void)offset;
+    (void)fi;
 
     dp = opendir(fpath);
 
     if (dp == NULL) return -errno;
 
     while ((de = readdir(dp)) != NULL) {
+        if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
+
         struct stat st;
-
         memset(&st, 0, sizeof(st));
-
         st.st_ino = de->d_ino;
         st.st_mode = de->d_type << 12;
-        res = (filler(buf, de->d_name, &st, 0));
 
-        if(res!=0) break;
+        if (a != NULL) encAtbash(de->d_name);
+        if (b != NULL) encAtbash(de->d_name);
+
+        res = (filler(buf, de->d_name, &st, 0));
+        if (res != 0) break;
     }
 
     closedir(dp);
-
     return 0;
 }
 
 static int xmp_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
+    char *a = strstr(path, prefix1);
+    if (a != NULL) decAtbash(a);
+
+    char *b = strstr(path, prefix2);
+    if (b != NULL) decAtbash(b);
+
     char fpath[1000];
-    if(strcmp(path,"/") == 0)
-    {
-        path=dirpath;
-        sprintf(fpath,"%s",path);
+    if (strcmp(path, "/") == 0) {
+        path = dirpath;
+        sprintf(fpath, "%s", path);
     }
-    else sprintf(fpath, "%s%s",dirpath,path);
+    else sprintf(fpath, "%s%s", dirpath, path);
 
-    int res = 0;
-    int fd = 0 ;
+    (void)fi;
+    setLog("READ", fpath);
 
-    (void) fi;
+    int fd = open(fpath, O_RDONLY);
+    if (fd == -1)
+        return -errno;
 
-    fd = open(fpath, O_RDONLY);
-
-    if (fd == -1) return -errno;
-
-    res = pread(fd, buf, size, offset);
-
+    int res = pread(fd, buf, size, offset);
     if (res == -1) res = -errno;
 
     close(fd);
-
     return res;
 }
 
 static int xmp_mkdir(const char *path, mode_t mode)
 {
-	int res;
+    char *a = strstr(path, prefix1);
+    if (a != NULL) decAtbash(a);
+
+    char *b = strstr(path, prefix2);
+    if (b != NULL) decAtbash(b);
+
     char fpath[1000];
-    if(strcmp(path,"/") == 0)
-    {
-        path=dirpath;
-        sprintf(fpath,"%s",path);
+    if (strcmp(path, "/") == 0) {
+        path = dirpath;
+        sprintf(fpath, "%s", path);
     }
-    else sprintf(fpath, "%s%s",dirpath,path);
+    else sprintf(fpath, "%s%s", dirpath, path);
 
-	res = mkdir(fpath, mode);
-	if (res == -1)
-		return -errno;
+    int res = mkdir(fpath, mode);
+    setLog("MKDIR", fpath);
 
-	return 0;
-}
-
-static int xmp_mknod(const char *path, mode_t mode, dev_t rdev)
-{
-	int res;
-    char fpath[1000];
-    if(strcmp(path,"/") == 0)
-    {
-        path=dirpath;
-        sprintf(fpath,"%s",path);
-    }
-    else sprintf(fpath, "%s%s",dirpath,path);
-
-	res = mknod(fpath, mode, rdev);
-	if (res == -1)
-		return -errno;
-
-	return 0;
-}
-
-static int xmp_unlink(const char *path)
-{
-	int res;
-    char fpath[1000];
-    if(strcmp(path,"/") == 0)
-    {
-        path=dirpath;
-        sprintf(fpath,"%s",path);
-    }
-    else sprintf(fpath, "%s%s",dirpath,path);
-
-	res = unlink(fpath);
-	if (res == -1)
-		return -errno;
-
-	return 0;
+    if (res == -1) return -errno;
+    return 0;
 }
 
 static int xmp_rmdir(const char *path)
 {
-	int res;
+    char *a = strstr(path, prefix1);
+    if (a != NULL) decAtbash(a);
+
+    char *b = strstr(path, prefix2);
+    if (b != NULL) decAtbash(b);
+
     char fpath[1000];
-    if(strcmp(path,"/") == 0)
-    {
-        path=dirpath;
-        sprintf(fpath,"%s",path);
+    if (strcmp(path, "/") == 0) {
+        path = dirpath;
+        sprintf(fpath, "%s", path);
     }
-    else sprintf(fpath, "%s%s",dirpath,path);
+    else sprintf(fpath, "%s%s", dirpath, path);
 
-	res = rmdir(fpath);
-	if (res == -1)
-		return -errno;
+    int res = rmdir(fpath);
+    setLog("RMDIR", fpath);
 
-	return 0;
+    if (res == -1) return -errno;
+    return 0;
 }
 
-// path from dan to belum diganti
-static int xmp_rename(const char *from, const char *to, unsigned int flags)
+static int xmp_rename(const char *from, const char *to)
 {
-	int res;
+    char *a = strstr(to, prefix1);
+    if (a != NULL) decAtbash(a);
 
-	if (flags)
-		return -EINVAL;
+    char *b = strstr(from, prefix2);
+    if (b != NULL) decAtbash(b);
 
-	res = rename(from, to);
-	if (res == -1)
-		return -errno;
+    char *c = strstr(to, prefix2);
+    if (c != NULL) decAtbash(c);
 
-	return 0;
-}
+    char oldName[1000], newName[1000];
+    sprintf(oldName, "%s%s", dirpath, from);
+    sprintf(newName, "%s%s", dirpath, to);
 
-// path from dan to belum diganti
-static int xmp_link(const char *from, const char *to)
-{
-	int res;
+    int res = rename(oldName, newName);
+    if (res == -1) return -errno;
 
-	res = link(from, to);
-	if (res == -1)
-		return -errno;
+    setLogWithNameFiles("RENAME", oldName, newName);
 
-	return 0;
-}
+    if (c != NULL) setLogWithNameFiles("ENCRYPT2", from, to);
+    if (b != NULL && c == NULL) setLogWithNameFiles("DECRYPT2", from, to);
 
-static int xmp_chmod(const char *path, mode_t mode, struct fuse_file_info *fi)
-{
-	(void) fi;
-	int res;
-    char fpath[1000];
-    if(strcmp(path,"/") == 0)
-    {
-        path=dirpath;
-        sprintf(fpath,"%s",path);
-    }
-    else sprintf(fpath, "%s%s",dirpath,path);
-
-	res = chmod(fpath, mode);
-	if (res == -1)
-		return -errno;
-
-	return 0;
-}
-
-static int xmp_chown(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi)
-{
-	(void) fi;
-	int res;
-    char fpath[1000];
-    if(strcmp(path,"/") == 0)
-    {
-        path=dirpath;
-        sprintf(fpath,"%s",path);
-    }
-    else sprintf(fpath, "%s%s",dirpath,path);
-
-	res = lchown(fpath, uid, gid);
-	if (res == -1)
-		return -errno;
-
-	return 0;
-}
-
-static int xmp_truncate(const char *path, off_t size, struct fuse_file_info *fi)
-{
-	int res;
-    char fpath[1000];
-    if(strcmp(path,"/") == 0)
-    {
-        path=dirpath;
-        sprintf(fpath,"%s",path);
-    }
-    else sprintf(fpath, "%s%s",dirpath,path);
-
-	if (fi != NULL)
-		res = ftruncate(fi->fh, size);
-	else
-		res = truncate(fpath, size);
-	if (res == -1)
-		return -errno;
-
-	return 0;
-}
-
-static int xmp_open(const char *path, struct fuse_file_info *fi)
-{
-	int res;
-    char fpath[1000];
-    if(strcmp(path,"/") == 0)
-    {
-        path=dirpath;
-        sprintf(fpath,"%s",path);
-    }
-    else sprintf(fpath, "%s%s",dirpath,path);
-
-	res = open(fpath, fi->flags);
-	if (res == -1)
-		return -errno;
-
-	fi->fh = res;
-	return 0;
-}
-
-static int xmp_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
-{
-	int fd;
-	int res;
-    char fpath[1000];
-    if(strcmp(path,"/") == 0)
-    {
-        path=dirpath;
-        sprintf(fpath,"%s",path);
-    }
-    else sprintf(fpath, "%s%s",dirpath,path);
-
-	(void) fi;
-	if(fi == NULL)
-		fd = open(fpath, O_WRONLY);
-	else
-		fd = fi->fh;
-	
-	if (fd == -1)
-		return -errno;
-
-	res = pwrite(fd, buf, size, offset);
-	if (res == -1)
-		res = -errno;
-
-	if(fi == NULL)
-		close(fd);
-	return res;
-}
-
-static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi)
-{
-	int res;
-    char fpath[1000];
-    if(strcmp(path,"/") == 0)
-    {
-        path=dirpath;
-        sprintf(fpath,"%s",path);
-    }
-    else sprintf(fpath, "%s%s",dirpath,path);
-
-	res = open(fpath, fi->flags, mode);
-	if (res == -1)
-		return -errno;
-
-	fi->fh = res;
-	return 0;
+    return 0;
 }
 
 static struct fuse_operations xmp_oper = {
@@ -356,22 +315,16 @@ static struct fuse_operations xmp_oper = {
     .readdir = xmp_readdir,
     .read = xmp_read,
     .mkdir = xmp_mkdir,
-    .mknod = xmp_mknod,
-    .unlink = xmp_unlink,
     .rmdir = xmp_rmdir,
     .rename = xmp_rename,
-    .link = xmp_link,
-    .chmod = xmp_chmod,
-    .chown = xmp_chown,
-    .truncate = xmp_truncate,
-    .open = xmp_open,
-    .write = xmp_write,
-    .create = xmp_create,
 };
 
-int  main(int  argc, char *argv[])
+int main(int argc, char *argv[])
 {
     umask(0);
-
     return fuse_main(argc, argv, &xmp_oper, NULL);
 }
+
+// gcc -Wall `pkg-config fuse --cflags` 01.c -o 01 `pkg-config fuse --libs`
+// ./01 -f dir01
+// fusermount -u test
