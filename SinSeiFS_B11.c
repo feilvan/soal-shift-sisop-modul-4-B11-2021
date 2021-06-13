@@ -14,6 +14,7 @@ static const char *dirpath = "/home/xa/Downloads";
 
 char *prefix1 = "AtoZ_";
 char *prefix2 = "RX_";
+char *prefix3 = "A_is_a_";
 int x = 0;
 
 int splitExtension(char *filePath)
