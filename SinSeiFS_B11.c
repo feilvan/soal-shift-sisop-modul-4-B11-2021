@@ -55,9 +55,7 @@ void encAtbash(char *filePath)
     int startIndex = getSlashFile(filePath, 0);
 
     for (int index = startIndex; index < endIndex; index++)
-    {
-        if (filePath[index] != '/' && isalpha(filePath[index]))
-        {
+        if (filePath[index] != '/' && isalpha(filePath[index])) {
             char tmp = filePath[index];
             if (isupper(filePath[index]))
                 tmp -= 'A';
@@ -70,7 +68,6 @@ void encAtbash(char *filePath)
                 tmp += 'a';
             filePath[index] = tmp;
         }
-    }
 }
 
 void decAtbash(char *path)
@@ -85,7 +82,7 @@ void decAtbash(char *path)
         endIndex = getExtension(path);
     int startIndex = getSlashFile(path, endIndex);
 
-    for (int index = startIndex; index < endIndex; index++) {
+    for (int index = startIndex; index < endIndex; index++)
         if (path[index] != '/' && isalpha(path[index])) {
             char tmp = path[index];
             if (isupper(path[index]))
@@ -99,7 +96,6 @@ void decAtbash(char *path)
                 tmp += 'a';
             path[index] = tmp;
         }
-    }
 }
 
 void setLog(char *logCategory, char *fpath)
